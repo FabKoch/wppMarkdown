@@ -276,9 +276,22 @@ popLineData <- data_popFM_long %>%
       name,
       year) %>% 
     summarize(population = sum(population))  %>% 
-    mutate(population = population*1000) 
+    mutate(population = round(population/1000000,1)) %>% 
+    # mutate(year = as.character(year)) %>% 
+    ungroup()
 
-popLineGraph <- ggplot(
+xMin <- min(popLineData$year)
+xMax <- max(popLineData$year)
+
+valueTextFrance <- popLineData %>% 
+  filter(year == 1950 | year == 2020) %>% 
+  filter(name == "France") %>% 
+  select(population) 
+
+IncreaseFrance <- round(valueTextFrance[1,1]/valueTextFrance[2,1]*100,1)
+
+popLineGraph <- 
+  ggplot(
     popLineData, 
     aes(
       x = year, 
@@ -289,24 +302,26 @@ popLineGraph <- ggplot(
   geom_line(lwd = 1.2) +
   scale_color_manual(
     values = c(
-      "red", 
+      "red",
       "black")) +
+  # Annotation "Deutsche Einheit 1990"
   annotate(
     geom = "text",
-    x = as.character(1990),
+    x = 1990,
     y = 75.9,
     label = "Deutsche Einheit",
-    size = 3)+
+    size = 3) +
   annotate(
     geom="point", 
-    x = as.character(1990), 
+    x = 1990, 
     y = 78.9, 
     size=5, 
     shape=21, 
     fill="transparent") +
+  # Annotation "direct labeling of shown lines
   annotate(
     geom="Text", 
-    x = as.character(2010), 
+    x = 2010, 
     y = 78.9, 
     size=4, 
     label = "Deutschland",
@@ -314,13 +329,38 @@ popLineGraph <- ggplot(
     alpha = 0.7) +
   annotate(
     geom="Text", 
-    x = as.character(2010), 
+    x = 2010, 
     y = 59, 
     size=4, 
     label = "Frankreich",
     color = "red",
     fontface =2,
     alpha = 0.7) +
+  # Annotation pop growth France
+  annotate(
+    geom = "text", 
+    x = 1980, 
+    y = 65, 
+    size = 3,
+    label = paste("Anstieg\num",IncreaseFrance,"%"),
+    hjust = "left") +
+  annotate(
+    geom = "curve", 
+    x = 1979.5, 
+    y = 65, 
+    xend = 1950, 
+    yend = 43,
+    curvature = .3, 
+    arrow = arrow(length = unit(2, "mm"))) +
+  annotate(
+    geom = "curve", 
+    x = 1985, 
+    y = 66, 
+    xend = 2020, 
+    yend = 66,
+    # counter-clockwise curl, and negative values a clockwise curl
+    curvature = -.3, 
+    arrow = arrow(length = unit(2, "mm"))) +
   theme_minimal() + 
   labs(
       title = "Bevölkerungsentwicklung in Deutschland und Frankreich",
@@ -330,7 +370,8 @@ popLineGraph <- ggplot(
       fill = "") +
     xlab("") +
     ylab("Anzahl in Millionen") +
-  theme(legend.position = "none")
+  theme(legend.position = "none") +
+  coord_cartesian(xlim = c(xMin, xMax)) 
 ```
 
 
