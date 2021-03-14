@@ -77,8 +77,6 @@ data_popFM_long <- data_popFM %>%
 # DATA PREP
 ####
 
-# Goal: create population pyramid for Germany for 2020 and 2015
-
 popPyData <- data_popFM_long %>%
   filter(
     name == "Germany") %>% 
@@ -89,7 +87,7 @@ popPyData <- data_popFM_long %>%
   mutate(
     percPop_country_gender = round(population/sum(population)*100,1)) %>%
   ungroup() %>%
-  # female percentages are later align to the left side of x-axis, this *-1
+  # female percentages are later align to the left side of x-axis, thus *-1
   mutate(perc_MF = ifelse(gender == "F", percPop_country_gender*-1, percPop_country_gender)) %>% 
   select(
     year,
@@ -213,12 +211,12 @@ Male <- ggplot() +
     name = "", 
     limits = c(0, scale_max+1), 
     breaks= scales::breaks_pretty(5), 
-    expand = c(0, 1.2)) + 
+    expand = c(0, 1)) + 
   ylab("") +
   # the titles become Plot Tags when stichted together via "patchwork"
   ggtitle("männlich") +
   # alignment
-  theme(plot.title = element_text(hjust=0.1))
+  theme(plot.title = element_text(hjust=0.08))
    
 
 # Bars weiblich
@@ -243,7 +241,7 @@ Female <- ggplot() +
   # reverse, since female values are negativ
     limits = c(scale_max+1, 0), 
     breaks= scales::breaks_pretty(5), 
-    expand = c(0, 0.2)) +
+    expand = c(0, 0.1)) +
   theme(
     axis.text.y = element_blank(),
     plot.margin = unit(c(t = 0, r = -2, b = 0, l = 0), "cm")) +
@@ -251,7 +249,7 @@ Female <- ggplot() +
   # the titles become Plot Tags when stichted together via "patchwork"
   ggtitle("weiblich") +
   # alignment
-  theme(plot.title = element_text(hjust=0.9))
+  theme(plot.title = element_text(hjust=1))
 
 
 patchedPy <- Female + Male  +
@@ -260,7 +258,6 @@ patchedPy <- Female + Male  +
     subtitle = "Vergleich 2015/2020, Quelle: Dataset wpp2019, Angaben in %",
     caption = "Balken: 2020, Linien: 2015")
 
-patchedPy
 
 ```
 
@@ -270,5 +267,74 @@ patchedPy
 ```
 
 
+```{r}
+popLineData <- data_popFM_long %>% 
+  filter(
+      name == "Germany"
+      | name == "France") %>%
+    group_by(
+      name,
+      year) %>% 
+    summarize(population = sum(population))  %>% 
+    mutate(population = population*1000) 
 
+popLineGraph <- ggplot(
+    popLineData, 
+    aes(
+      x = year, 
+      y = population, 
+      group = name, 
+      color = name,
+    alpha = 0.7)) +
+  geom_line(lwd = 1.2) +
+  scale_color_manual(
+    values = c(
+      "red", 
+      "black")) +
+  annotate(
+    geom = "text",
+    x = as.character(1990),
+    y = 75.9,
+    label = "Deutsche Einheit",
+    size = 3)+
+  annotate(
+    geom="point", 
+    x = as.character(1990), 
+    y = 78.9, 
+    size=5, 
+    shape=21, 
+    fill="transparent") +
+  annotate(
+    geom="Text", 
+    x = as.character(2010), 
+    y = 78.9, 
+    size=4, 
+    label = "Deutschland",
+    fontface =2,
+    alpha = 0.7) +
+  annotate(
+    geom="Text", 
+    x = as.character(2010), 
+    y = 59, 
+    size=4, 
+    label = "Frankreich",
+    color = "red",
+    fontface =2,
+    alpha = 0.7) +
+  theme_minimal() + 
+  labs(
+      title = "Bevölkerungsentwicklung in Deutschland und Frankreich",
+      subtitle = "1950 bis 2015",
+      caption = "",
+      tag = "",
+      fill = "") +
+    xlab("") +
+    ylab("Anzahl in Millionen") +
+  theme(legend.position = "none")
+```
+
+
+```{r}
+popLineGraph
+```
 
