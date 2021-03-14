@@ -1,0 +1,274 @@
+---
+title: "wppMarkdown"
+author: "Fabian Koch"
+date: "14 3 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r echo = FALSE}
+# Dataset
+# Data from the United Nations World Population Prospects 2019, released on June 17, 2019
+# ?wpp2019
+library(wpp2019)
+library(tidyverse)
+library(patchwork) # stitching plots
+```
+
+```{r echo = FALSE}
+data("popF") # age- and sex-specific population estimates and projections
+data("popM") # age- and sex-specific population estimates and projections
+data("UNlocations") # location dataset
+
+# Female pop estimates
+popFemale <- popF %>% mutate(gender = "F")
+
+# Male pop estimates and merge
+data_popFM <- popM %>% 
+  mutate(gender = "M") %>% 
+  # merge
+  bind_rows(popFemale) %>% 
+  # join country & area codes
+  left_join(
+    select(
+      UNlocations,
+      country_code,
+      reg_code,
+      reg_name,
+      area_code,
+      area_name),
+    by = "country_code") %>% 
+  # pad country codes
+  mutate(country_code = stringr::str_pad(country_code, 3, pad = "0")) %>% 
+  # pop estimates are by 1k population
+  mutate(across(where(is.numeric), ~ .*1000))
+
+  
+# Extract age levels as factor levels for age groups
+age_fctLvl <- data_popFM %>% 
+  select(age) %>% 
+  distinct() %>% 
+  # pull creates vector instead of data.frame
+  pull()
+  
+
+# im long format ----
+data_popFM_long <- data_popFM %>% 
+  pivot_longer(
+    # cols to unpivot are 4 digit numbers, thus including only years (e.g. 2015 etc) 
+    cols = matches("[0-9]{4}"),
+    values_to = "population",
+    names_to = "year") %>% 
+  mutate(
+    year = as.numeric(year),
+    age = factor(
+      age,
+      ordered = TRUE,
+      levels = age_fctLvl)) 
+
+```
+
+
+```{r population pyramid, echo = FALSE}
+####
+# DATA PREP
+####
+
+# Goal: create population pyramid for Germany for 2020 and 2015
+
+popPyData <- data_popFM_long %>%
+  filter(
+    name == "Germany") %>% 
+  group_by(
+    year,
+    name,
+    gender) %>%
+  mutate(
+    percPop_country_gender = round(population/sum(population)*100,1)) %>%
+  ungroup() %>%
+  # female percentages are later align to the left side of x-axis, this *-1
+  mutate(perc_MF = ifelse(gender == "F", percPop_country_gender*-1, percPop_country_gender)) %>% 
+  select(
+    year,
+    name,
+    age,
+    gender,
+    percPop_country_gender)
+
+
+
+####
+# PLOT
+####
+
+# Themes
+
+default_font_color <- "black"
+default_background_color <- NA # no background color
+default_themecolor <- "#044891"
+
+theme_ggplot2_popPy <- function(...) {
+  theme_minimal()
+  theme(
+    text = element_text(
+      # family = default_font_family,
+      color = default_font_color),
+    # remove all axes
+    axis.line = element_blank(),
+    axis.text.x = element_text(
+      size = 8, hjust = 0,
+      color = default_font_color),
+    axis.text.y = element_text(
+      margin = unit(c(t = 0, r = -0.7, b = 0, l = 0), "cm")),
+    axis.ticks = element_blank(),
+    axis.title.y=element_blank(),
+    # panel.grid.major = element_blank(),
+    # panel.grid.minor = element_blank(),
+    # background colors
+    plot.background = element_rect(fill = default_background_color,
+                                   color = NA),
+    panel.background = element_rect(fill = default_background_color,
+                                    color = NA),
+    legend.background = element_rect(fill = default_background_color,
+                                     color = NA),
+    # borders and margins
+    panel.border = element_blank(),
+    panel.spacing = unit(c(0, 0, 0, 0), "cm"),
+    # titles
+    legend.title = element_text(size = 9),
+    legend.text = element_text(size = 7, hjust = 0,
+                               color = default_font_color),
+    plot.title = element_text(size = 9,
+                              color = default_font_color,
+                              face = "bold"
+                              ),
+    plot.subtitle = element_text(size = 7,
+                                 color = default_font_color,
+                                 margin = margin(b = -0.1,
+                                                 t = -0.1,
+                                                 l = 2,
+                                                 unit = "cm"),
+                                 debug = F),
+    
+  
+    plot.caption = element_text(size = 10,
+                                hjust = 0,
+                                margin = margin(t = 0.2,
+                                                b = 0,
+                                                unit = "cm"),
+                                color = "#939184"),
+    ...
+  )
+  
+}
+
+####
+# BAR ELEMENTS
+####
+
+# Bar Charts, left female, right male are showing pop estimates for year 2020
+
+popPyDataBar <- popPyData %>% 
+  filter(year == 2020)
+
+
+popPyDataLine <- popPyData %>% 
+  filter(year == 2000)  
+
+
+# Maxmimum value for x-axis
+scale_max <-   
+  popPyData %>% 
+  select(percPop_country_gender) %>% 
+  # max perc
+  max() %>% 
+  # round up to next integer
+  ceiling()
+
+
+# Bars männlich
+Male <- ggplot() +
+  geom_col(  
+    data = popPyDataBar[popPyDataBar$gender=="M",], 
+    aes(
+      x = percPop_country_gender,
+      y = age),
+    fill = "cornflowerblue",
+    alpha = 0.7) +
+  geom_line(
+      data = popPyDataLine[popPyDataLine$gender=="M",], 
+      aes(
+        x = percPop_country_gender,
+        y = age,
+      group = gender),
+      orientation = "y",
+      color = "midnightblue") +
+  theme_ggplot2_popPy() +
+  theme(
+    plot.margin = unit(c(t = 0, r = 0, b = 0, l = 0), "cm")) +
+  scale_x_continuous(
+    name = "", 
+    limits = c(0, scale_max+1), 
+    breaks= scales::breaks_pretty(5), 
+    expand = c(0, 1.2)) + 
+  ylab("") +
+  # the titles become Plot Tags when stichted together via "patchwork"
+  ggtitle("männlich") +
+  # alignment
+  theme(plot.title = element_text(hjust=0.1))
+   
+
+# Bars weiblich
+Female <- ggplot() +
+  geom_col(
+    data = popPyDataBar[popPyDataBar$gender=="F",], 
+    aes(
+      x = percPop_country_gender,
+      y = age),
+    fill = "darkseagreen2") +
+  geom_line(
+    data = popPyDataLine[popPyDataLine$gender=="F",], 
+    aes(
+      x = percPop_country_gender,
+      y = age,
+    group = gender),
+    orientation = "y",
+    color = "seagreen") +
+  theme_ggplot2_popPy() +
+  scale_x_reverse(
+    name = "", 
+  # reverse, since female values are negativ
+    limits = c(scale_max+1, 0), 
+    breaks= scales::breaks_pretty(5), 
+    expand = c(0, 0.2)) +
+  theme(
+    axis.text.y = element_blank(),
+    plot.margin = unit(c(t = 0, r = -2, b = 0, l = 0), "cm")) +
+  ylab("") +
+  # the titles become Plot Tags when stichted together via "patchwork"
+  ggtitle("weiblich") +
+  # alignment
+  theme(plot.title = element_text(hjust=0.9))
+
+
+patchedPy <- Female + Male  +
+  patchwork::plot_annotation(
+    title = "Altersgruppen der Bevölkerung Deutschlands",
+    subtitle = "Vergleich 2015/2020, Quelle: Dataset wpp2019, Angaben in %",
+    caption = "Balken: 2020, Linien: 2015")
+
+patchedPy
+
+```
+
+
+```{r}
+patchedPy
+```
+
+
+
+
