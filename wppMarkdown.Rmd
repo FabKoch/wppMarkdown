@@ -273,76 +273,94 @@ patchedPy <- Female + Male  +
 patchedPy
 ```
 
-```{r}
+### Plot and Text
+
+Concepts:
+
+- enabling plotting outside of plot area by using coord_cartesian
+- reording factors by fct_reorder
+
+Refrence:
+
+- https://ggplot2.tidyverse.org/reference/coord_cartesian.html
+
+```{r echo = FALSE, warning = FALSE, message = FALSE}
+###
+# DATA PREP
+###
+
+
 popBarTabData <- data_popFM_long %>%
-  filter(
-    name == "Germany") %>% 
+  filter(reg_name == "Western Europe") %>% 
   filter(year == max(year) | year == max(year)-5) %>%
   group_by(
     year,
-    age) %>%
-  summarize(population = sum(population)) %>% 
-  ungroup() %>% 
-  group_by(year) %>% 
-  mutate(population = round(population/1000,1)) %>% 
+    name) %>%
+  # summarize total pop
+  summarize(
+    population = round(sum(population)/1000000,1)) %>% 
   pivot_wider(values_from = population,
               names_from = year) %>% 
   select(
-    age,
+    name,
     contains("0")) %>%
   mutate(
     # selecting by column index in mutate
-    age_change_abs = .[[3]] - .[[2]],
-    age_change_perc = round((.[[3]]/.[[2]]-1)*100,1)) %>% 
-  # calculating mins of more than 1 column
-  mutate(min = pmin(.[[3]], .[[2]]),
-         max = pmax(.[[3]], .[[2]])) %>%
-  filter(!age%in% c("95-99","100+"))
+    pop_change_abs = .[[3]] - .[[2]],
+    pop_change_perc = round((.[[3]]/.[[2]]-1)*100,1)) 
 
 
-scalemaxBarTab <- max(popBarTabData$max)
-scaleminBarTab <- min(popBarTabData$min)
+scalemaxBarTab <- max(popBarTabData$pop_change_perc)
+scaleminBarTab <- min(popBarTabData$pop_change_perc)
+
+###
+# PLOT
+###
 
 
-HWBVBarPlot <-   ggplot(popBarTabData) + 
-  geom_bar(aes(
-    x = age_change_perc, 
-    y = age),
+plotBarTab <-   
+  ggplot(
+    popBarTabData,
+    aes(
+    x = pop_change_perc, 
+    # reorder by column
+    y = fct_reorder(name,pop_change_perc))) + 
+  geom_bar(
            stat = "identity",
            fill = "#044891",
           alpha = 0.8) +
   geom_text(
      aes(
-      x = age_change_perc, 
-      y = age, 
-      label = age_change_perc,
-      hjust = ifelse(age_change_perc >= 0, -0.2, 1.2)),    
+      label = round(pop_change_perc,1),
+      hjust = ifelse(pop_change_perc >= 0, -0.2, 1.2)),    
      size = 3,
      position = position_dodge(width = 1)) +
   geom_text(
     aes(
-      x = scalemaxBarTab+0.2, 
-      y = age, 
-      label = age_change_abs),
-    size = 3) 
-
-
+      # moving x outside of plot area
+      x = scalemaxBarTab+scalemaxBarTab/10, 
+      y = name, 
+      label = round(pop_change_abs,1)),
+    size = 3) +
   coord_cartesian(
     xlim = c(scaleminBarTab-0.2, scalemaxBarTab),
             clip = 'off')  +
     theme_minimal() + 
     theme(plot.margin = unit(c(0,5,1,1), "lines")) +
     labs(
-      title = "Veränderung der Hauptwohlbevölkerung ",
-      subtitle = "in Stadtbezirken, 31.12.2019 bis 31.12.2020, in % und absolut",
+      title = "Population change in countries of Western Europe",
+      subtitle = "2015 - 2020",
       caption = "",
       tag = "",
       fill = "") +
-    xlab("") +
+    xlab("in % and in millions") +
     ylab("") 
 
 ```
 
+```{r echo = FALSE}
+plotBarTab
+```
 
 
 
