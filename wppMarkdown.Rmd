@@ -9,16 +9,16 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r echo = FALSE}
+```{r echo = FALSE, warning = FALSE, message = FALSE}
 # Dataset
 # Data from the United Nations World Population Prospects 2019, released on June 17, 2019
 # ?wpp2019
 library(wpp2019)
 library(tidyverse)
-library(patchwork) # stitching plots
+library(patchwork) 
 ```
 
-```{r echo = FALSE}
+```{r echo = FALSE, warning = FALSE, message = FALSE}
 data("popF") # age- and sex-specific population estimates and projections
 data("popM") # age- and sex-specific population estimates and projections
 data("UNlocations") # location dataset
@@ -72,42 +72,18 @@ data_popFM_long <- data_popFM %>%
 ```
 
 
-```{r population pyramid, echo = FALSE}
-####
-# DATA PREP
-####
-
-popPyData <- data_popFM_long %>%
-  filter(
-    name == "Germany") %>% 
-  group_by(
-    year,
-    name,
-    gender) %>%
-  mutate(
-    percPop_country_gender = round(population/sum(population)*100,1)) %>%
-  ungroup() %>%
-  # female percentages are later align to the left side of x-axis, thus *-1
-  mutate(perc_MF = ifelse(gender == "F", percPop_country_gender*-1, percPop_country_gender)) %>% 
-  select(
-    year,
-    name,
-    age,
-    gender,
-    percPop_country_gender)
-
-
-
-####
-# PLOT
-####
-
-# Themes
-
+## Themes
+### default settings
+```{r echo = FALSE, warning = FALSE, message = FALSE}
+# default elements
 default_font_color <- "black"
 default_background_color <- NA # no background color
 default_themecolor <- "#044891"
+```
 
+### population pyramid
+```{r echo = FALSE, warning = FALSE, message = FALSE} 
+# population pyramid
 theme_ggplot2_popPy <- function(...) {
   theme_minimal()
   theme(
@@ -162,9 +138,43 @@ theme_ggplot2_popPy <- function(...) {
   )
   
 }
+```
+
+## Combining multiple plots
+
+Concepts: 
+
+- arranging multiple Plots w/ {patchwork}
+
+### population pyramid
+```{r echo = FALSE, warning = FALSE, message = FALSE}
+####
+# DATA PREP
+####
+
+popPyData <- data_popFM_long %>%
+  filter(
+    name == "Germany") %>% 
+  group_by(
+    year,
+    name,
+    gender) %>%
+  mutate(
+    percPop_country_gender = round(population/sum(population)*100,1)) %>%
+  ungroup() %>%
+  # female percentages are later align to the left side of x-axis, thus *-1
+  mutate(perc_MF = ifelse(gender == "F", percPop_country_gender*-1, percPop_country_gender)) %>% 
+  select(
+    year,
+    name,
+    age,
+    gender,
+    percPop_country_gender)
+
+
 
 ####
-# BAR ELEMENTS
+# PLOT
 ####
 
 # Bar Charts, left female, right male are showing pop estimates for year 2020
@@ -187,7 +197,7 @@ scale_max <-
   ceiling()
 
 
-# Bars männlich
+# Bars male
 Male <- ggplot() +
   geom_col(  
     data = popPyDataBar[popPyDataBar$gender=="M",], 
@@ -214,12 +224,12 @@ Male <- ggplot() +
     expand = c(0, 1)) + 
   ylab("") +
   # the titles become Plot Tags when stichted together via "patchwork"
-  ggtitle("männlich") +
+  ggtitle("male") +
   # alignment
   theme(plot.title = element_text(hjust=0.08))
    
 
-# Bars weiblich
+# Bars female
 Female <- ggplot() +
   geom_col(
     data = popPyDataBar[popPyDataBar$gender=="F",], 
@@ -247,27 +257,118 @@ Female <- ggplot() +
     plot.margin = unit(c(t = 0, r = -2, b = 0, l = 0), "cm")) +
   ylab("") +
   # the titles become Plot Tags when stichted together via "patchwork"
-  ggtitle("weiblich") +
+  ggtitle("female") +
   # alignment
   theme(plot.title = element_text(hjust=1))
 
 
 patchedPy <- Female + Male  +
   patchwork::plot_annotation(
-    title = "Altersgruppen der Bevölkerung Deutschlands",
-    subtitle = "Vergleich 2015/2020, Quelle: Dataset wpp2019, Angaben in %",
-    caption = "Balken: 2020, Linien: 2015")
-
-
+    title = "Changes in gender specific age distribution of german population",
+    subtitle = "by age groups, bars: 2020, lines: 2000, in %",
+    caption = "Source: dataset wpp2019")
 ```
 
-
-```{r}
+```{r echo = FALSE, warning = FALSE, message = FALSE}
 patchedPy
 ```
 
-
 ```{r}
+popBarTabData <- data_popFM_long %>%
+  filter(
+    name == "Germany") %>% 
+  filter(year == max(year) | year == max(year)-5) %>%
+  group_by(
+    year,
+    age) %>%
+  summarize(population = sum(population)) %>% 
+  ungroup() %>% 
+  group_by(year) %>% 
+  mutate(population = round(population/1000,1)) %>% 
+  pivot_wider(values_from = population,
+              names_from = year) %>% 
+  select(
+    age,
+    contains("0")) %>%
+  mutate(
+    # selecting by column index in mutate
+    age_change_abs = .[[3]] - .[[2]],
+    age_change_perc = round((.[[3]]/.[[2]]-1)*100,1)) %>% 
+  # calculating mins of more than 1 column
+  mutate(min = pmin(.[[3]], .[[2]]),
+         max = pmax(.[[3]], .[[2]])) %>%
+  filter(!age%in% c("95-99","100+"))
+
+
+scalemaxBarTab <- max(popBarTabData$max)
+scaleminBarTab <- min(popBarTabData$min)
+
+
+HWBVBarPlot <-   ggplot(popBarTabData) + 
+  geom_bar(aes(
+    x = age_change_perc, 
+    y = age),
+           stat = "identity",
+           fill = "#044891",
+          alpha = 0.8) +
+  geom_text(
+     aes(
+      x = age_change_perc, 
+      y = age, 
+      label = age_change_perc,
+      hjust = ifelse(age_change_perc >= 0, -0.2, 1.2)),    
+     size = 3,
+     position = position_dodge(width = 1)) +
+  geom_text(
+    aes(
+      x = scalemaxBarTab+0.2, 
+      y = age, 
+      label = age_change_abs),
+    size = 3) 
+
+
+  coord_cartesian(
+    xlim = c(scaleminBarTab-0.2, scalemaxBarTab),
+            clip = 'off')  +
+    theme_minimal() + 
+    theme(plot.margin = unit(c(0,5,1,1), "lines")) +
+    labs(
+      title = "Veränderung der Hauptwohlbevölkerung ",
+      subtitle = "in Stadtbezirken, 31.12.2019 bis 31.12.2020, in % und absolut",
+      caption = "",
+      tag = "",
+      fill = "") +
+    xlab("") +
+    ylab("") 
+
+```
+
+
+
+
+## Plot annotation
+
+Concepts:
+
+- annotating plots with text and labels
+- using different font styles and families
+- direct labeling in expense of legend
+- arrows and curved lines as pointers
+
+
+Refrence:
+
+- https://ggplot2.tidyverse.org/reference/annotate.html
+- https://ggplot2-book.org/annotations.html
+- https://ggplot2.tidyverse.org/reference/geom_segment.html
+
+
+### line plot
+```{r echo = FALSE, warning = FALSE, message = FALSE}
+####
+# DATA PREP
+####
+
 popLineData <- data_popFM_long %>% 
   filter(
       name == "Germany"
@@ -280,15 +381,25 @@ popLineData <- data_popFM_long %>%
     # mutate(year = as.character(year)) %>% 
     ungroup()
 
-xMin <- min(popLineData$year)
-xMax <- max(popLineData$year)
 
+# calculation of label "IncreaseFrance"
 valueTextFrance <- popLineData %>% 
   filter(year == 1950 | year == 2020) %>% 
   filter(name == "France") %>% 
   select(population) 
-
 IncreaseFrance <- round(valueTextFrance[1,1]/valueTextFrance[2,1]*100,1)
+
+# geom_point layer "popPointFrance"
+popPointFrance <- popLineData %>% 
+  filter(name == "France") %>% 
+  arrange(year) %>% 
+  slice(c(1, n())) 
+
+
+
+####
+# PLOT
+####
 
 popLineGraph <- 
   ggplot(
@@ -297,20 +408,25 @@ popLineGraph <-
       x = year, 
       y = population, 
       group = name, 
-      color = name,
-    alpha = 0.7)) +
+      color = name)) +
   geom_line(lwd = 1.2) +
   scale_color_manual(
     values = c(
       "red",
       "black")) +
-  # Annotation "Deutsche Einheit 1990"
+  # Annotation "German unification"
   annotate(
-    geom = "text",
+    # label instead of text
+    geom = "label",
     x = 1990,
     y = 75.9,
-    label = "Deutsche Einheit",
+    # bold type
+    fontface = "bold",
+    # font family serif
+    family = "serif",
+    label = "German unification",
     size = 3) +
+  # transparent point annotation
   annotate(
     geom="point", 
     x = 1990, 
@@ -318,64 +434,90 @@ popLineGraph <-
     size=5, 
     shape=21, 
     fill="transparent") +
-  # Annotation "direct labeling of shown lines
+  # Annotation "direct labeling of shown lines"
   annotate(
     geom="Text", 
     x = 2010, 
     y = 78.9, 
     size=4, 
-    label = "Deutschland",
-    fontface =2,
-    alpha = 0.7) +
+    # # font family sans
+    family = "sans",
+    label = "Germany",
+    fontface =2) +
   annotate(
-    geom="Text", 
+    geom="text", 
     x = 2010, 
     y = 59, 
     size=4, 
-    label = "Frankreich",
+    # font family mono
+    family = "mono",
+    label = "France",
     color = "red",
-    fontface =2,
-    alpha = 0.7) +
+    fontface =2) +
   # Annotation pop growth France
   annotate(
     geom = "text", 
     x = 1980, 
     y = 65, 
     size = 3,
-    label = paste("Anstieg\num",IncreaseFrance,"%"),
+    fontface = "italic",
+    # adding line breaks in annotation
+    label = paste("Increase by\num",IncreaseFrance,"%"),
     hjust = "left") +
+  # geom_curve for curved line instead of an arrow
+   geom_curve(
+     aes(
+        x = 1979.5, 
+        y = 65, 
+        xend = 1950, 
+        yend = 43.5),
+     curvature = .2) +
   annotate(
     geom = "curve", 
-    x = 1979.5, 
-    y = 65, 
-    xend = 1950, 
-    yend = 43,
-    curvature = .3, 
-    arrow = arrow(length = unit(2, "mm"))) +
-  annotate(
-    geom = "curve", 
-    x = 1985, 
+    x = 1987, 
     y = 66, 
-    xend = 2020, 
+    xend = 2019, 
     yend = 66,
     # counter-clockwise curl, and negative values a clockwise curl
-    curvature = -.3, 
-    arrow = arrow(length = unit(2, "mm"))) +
+    curvature = -.2, 
+    arrow = arrow(length = unit(2, "mm"))) + 
+    # geom_point France 
+  geom_point(
+    data = popPointFrance,
+    aes(
+      x = year,
+      y = population), 
+    fill = "white",
+    alpha = 1,
+    shape = 21,
+    size = 3,
+    stroke = 1.5) +
+  geom_text(
+    data = popPointFrance,
+    aes(
+      x = year,
+      y = population,
+      label = population),
+    size = 3,
+    nudge_y = -2) +
   theme_minimal() + 
   labs(
-      title = "Bevölkerungsentwicklung in Deutschland und Frankreich",
-      subtitle = "1950 bis 2015",
+      title = "Population trends of Germany and Fance",
+      subtitle = "1950 - 2020",
       caption = "",
       tag = "",
       fill = "") +
     xlab("") +
-    ylab("Anzahl in Millionen") +
-  theme(legend.position = "none") +
-  coord_cartesian(xlim = c(xMin, xMax)) 
+    ylab("Population in millions") +
+  theme(legend.position = "none") 
+
+
 ```
 
 
-```{r}
+```{r echo = FALSE, warning = FALSE, message = FALSE}
 popLineGraph
 ```
 
+
+## Maps
