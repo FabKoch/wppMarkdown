@@ -16,9 +16,15 @@ knitr::opts_chunk$set(echo = TRUE)
 library(wpp2019)
 library(tidyverse)
 library(patchwork) 
+library(rnaturalearth)
+library(sf)
 ```
 
 ```{r echo = FALSE, warning = FALSE, message = FALSE}
+##
+# wpp Data
+##
+
 data("popF") # age- and sex-specific population estimates and projections
 data("popM") # age- and sex-specific population estimates and projections
 data("UNlocations") # location dataset
@@ -69,20 +75,29 @@ data_popFM_long <- data_popFM %>%
       ordered = TRUE,
       levels = age_fctLvl)) 
 
+##
+# Map Data
+##
+
+data_Worldmap <- sf::st_as_sf(rnaturalearth::countries110) %>%  
+  select(
+    country_code = iso_n3,
+    geometry) %>% 
+  drop_na()
+
 ```
 
 
 ## Themes
-### default settings
-```{r echo = FALSE, warning = FALSE, message = FALSE}
+
+### theme population pyramid
+```{r echo = FALSE, warning = FALSE, message = FALSE} 
 # default elements
+# default_font_family <- sans 
 default_font_color <- "black"
 default_background_color <- NA # no background color
 default_themecolor <- "#044891"
-```
 
-### population pyramid
-```{r echo = FALSE, warning = FALSE, message = FALSE} 
 # population pyramid
 theme_ggplot2_popPy <- function(...) {
   theme_minimal()
@@ -140,13 +155,80 @@ theme_ggplot2_popPy <- function(...) {
 }
 ```
 
-## Combining multiple plots
+### theme map
+```{r echo = FALSE, warning = FALSE, message= FALSE}
+# taken from: https://timogrossenbacher.ch/2019/04/bivariate-maps-with-ggplot2-and-sf/
+# https://github.com/grssnbchr/thematic-maps-ggplot2
+# default_font_family <- sans 
+default_font_color <- "black"
+default_background_color <- "white"
 
-Concepts: 
+
+theme_ggplot2_map <- function(...) {
+  theme_minimal()
+  theme(
+    text = element_text(
+      # family = default_font_family,
+      color = default_font_color),
+    # remove all axes
+    # axis.line = element_blank(),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks = element_blank(),
+    # remove grid
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    # background colors
+    plot.background = element_rect(fill = default_background_color,
+                                   color = NA),
+    panel.background = element_rect(fill = default_background_color,
+                                    color = NA),
+    legend.background = element_rect(fill = default_background_color,
+                                     color = NA),
+    # borders and margins
+    plot.margin = unit(c(0.1, -0.2, -0.3, -0.3), "cm"),
+    panel.border = element_blank(),
+    panel.spacing = unit(c(0, 0, 0, 0), "cm"),
+    # titles
+    legend.title = element_text(size = 6),
+    legend.text = element_text(size = 6, hjust = 0,
+                               color = default_font_color),
+    plot.title = element_text(size = 9, 
+                              color = default_font_color,
+                              face = "bold"),
+    plot.subtitle = element_text(size = 8, 
+                                 color = default_font_color,
+                                 margin = margin(b = -0.1,
+                                                 t = -0.1,
+                                                 l = 2,
+                                                 unit = "cm"),
+                                 debug = F),
+    # captions
+    plot.caption = element_text(size = 5,
+                                hjust = 0,
+                                margin = margin(t = 0.2,
+                                                b = 0,
+                                                unit = "cm"),
+                                color = "#939184"),
+    
+  
+    plot.tag.position = "topright",
+    plot.tag = element_text(size = 5,
+                                hjust = 0,
+                                margin = margin(t = 0.2,
+                                                b = 0,
+                                                unit = "cm")),
+    ...
+  )
+}
+```
+
+
+## Combining multiple plots
 
 - arranging multiple Plots w/ {patchwork}
 
-### population pyramid
+### Population pyramid
 ```{r echo = FALSE, warning = FALSE, message = FALSE}
 ####
 # DATA PREP
@@ -275,14 +357,13 @@ patchedPy
 
 ### Plot and Text
 
-Concepts:
 
 - enabling plotting outside of plot area by using coord_cartesian
 - reording factors by fct_reorder
-
-Refrence:
+- adusting positions of text/labels
 
 - https://ggplot2.tidyverse.org/reference/coord_cartesian.html
+- https://ggplot2.tidyverse.org/reference/position_dodge.html / https://stackoverflow.com/a/35102486
 
 ```{r echo = FALSE, warning = FALSE, message = FALSE}
 ###
@@ -328,7 +409,9 @@ plotBarTab <-
   geom_bar(
            stat = "identity",
            fill = "#044891",
-          alpha = 0.8) +
+          alpha = 1,
+          width = 0.6,
+          position = position_dodge(0.7)) +
   geom_text(
      aes(
       label = round(pop_change_perc,1),
@@ -346,14 +429,18 @@ plotBarTab <-
     xlim = c(scaleminBarTab-0.2, scalemaxBarTab),
             clip = 'off')  +
     theme_minimal() + 
-    theme(plot.margin = unit(c(0,5,1,1), "lines")) +
+    theme(
+      axis.text.x = element_blank(),
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      plot.margin = unit(c(0,5,1,1), "lines")) +
     labs(
       title = "Population change in countries of Western Europe",
-      subtitle = "2015 - 2020",
+      subtitle = "2015 - 2020, change in % and in millions",
       caption = "",
       tag = "",
       fill = "") +
-    xlab("in % and in millions") +
+    xlab("") +
     ylab("") 
 
 ```
@@ -366,22 +453,17 @@ plotBarTab
 
 ## Plot annotation
 
-Concepts:
-
-- annotating plots with text and labels
-- using different font styles and families
+- using different font styles and families with text and labels
 - direct labeling in expense of legend
 - arrows and curved lines as pointers
 
-
-Refrence:
 
 - https://ggplot2.tidyverse.org/reference/annotate.html
 - https://ggplot2-book.org/annotations.html
 - https://ggplot2.tidyverse.org/reference/geom_segment.html
 
 
-### line plot
+### Line plot
 ```{r echo = FALSE, warning = FALSE, message = FALSE}
 ####
 # DATA PREP
@@ -537,5 +619,217 @@ popLineGraph <-
 popLineGraph
 ```
 
-
 ## Maps
+
+```{r echo = FALSE, warning = FALSE, message= FALSE}
+
+###
+# DATA PREP
+###
+
+
+
+
+# calculation perc growth 2020 - 2015 and grouping countries
+popMapData <- data_popFM_long %>%
+  filter(area_name == "Asia") %>% 
+  filter(year == max(year) | year == max(year)-5) %>%
+  group_by(
+    year,
+    name, 
+    country_code) %>%
+  # summarize total pop
+  summarize(
+    population = sum(population)) %>% 
+  pivot_wider(values_from = population,
+              names_from = year) %>% 
+  ungroup() %>% 
+  mutate(
+    pop_change_perc = round((.[[4]]/.[[3]]-1)*100,1)) %>% 
+  select(-contains("0"))
+
+
+# map
+filterCountrylist <- popMapData %>% 
+  select(country_code) %>% 
+  distinct() %>% 
+  pull()
+
+data_EUmap <- data_Worldmap %>%  
+  filter(country_code %in% filterCountrylist) %>% 
+  left_join(popMapData)
+
+
+mapPlotScaleCont <- ggplot() +
+    # use of geometry col
+    # https://www.rdocumentation.org/packages/sf/versions/0.9-7/topics/st_as_sf
+    # https://r-spatial.github.io/sf/reference/st_as_sf.html
+    geom_sf(
+      data = data_EUmap, 
+      aes(fill = pop_change_perc)) +
+    # ggrepel for labeling without overlap
+    ggrepel::geom_label_repel(
+      # subsetting data to only show declining country labels
+      data = subset(data_EUmap, pop_change_perc < 0), 
+      # "sf_coordinates" so ggrepel can use "geometry"
+      stat = "sf_coordinates",
+      aes(
+        geometry = geometry,
+        label = name)) +
+    theme_ggplot2_map() +
+    # labeling
+    labs(
+      title = "Asian countries with declining resident population ",
+      subtitle = "2015 - 2020, labels only shown for countries with change < 0%",
+      caption = "",
+      tag = "",
+      fill = "change in %") +
+    xlab("") +
+    ylab("")  +
+    theme(legend.position = "top") +
+    viridis::scale_fill_viridis(
+      name = "population change in %",
+      # here we use guide_colourbar because it is still a continuous scale
+      guide = guide_colorbar(
+        direction = "horizontal",
+        barheight = unit(2, units = "mm"),
+        barwidth = unit(50, units = "mm"),
+        draw.ulim = F,
+        title.position = 'top',
+        # some shifting around
+        title.hjust = 0.5,
+        label.hjust = 0.5
+  ))
+
+
+# map with binned scale
+
+minScaleBin <- min(data_EUmap$pop_change_perc)
+maxScaleBin <- max(data_EUmap$pop_change_perc)
+
+breaks <- cartography::getBreaks(data_EUmap$pop_change_perc, 4, "pretty")
+
+breaksScaleBin <- c(minScaleBin, breaks, maxScaleBin)
+
+data_EUmapBinned <- data_EUmap %>% 
+  mutate(breaksPop = cut(
+    data_EUmap$pop_change_perc,
+    breaks = breaksScaleBin,
+    include.lowest = TRUE)) %>% 
+  mutate(breaksPop2 = breaksPop) %>% 
+  separate(breaksPop2, c("low","high"), sep = ',') %>% 
+  mutate(
+    low = stringr::str_replace(low, "\\(", ""),
+    low = stringr::str_replace(low, "\\[", ""),
+    high = stringr::str_replace(high, "\\]", ""),
+    label = paste0(low," to ", high))
+
+label <- data_EUmapBinned %>% 
+  select(label) %>% 
+  distinct() %>% 
+  pull()
+
+mapPlotScaleBinned <- data_EUmapBinned %>% 
+  ggplot() +
+    # use of geometry col
+    # https://www.rdocumentation.org/packages/sf/versions/0.9-7/topics/st_as_sf
+    # https://r-spatial.github.io/sf/reference/st_as_sf.html
+    geom_sf(
+      data = data_EUmapBinned, 
+      aes(fill = factor(label))) +
+    # ggrepel for labeling without overlap
+    ggrepel::geom_label_repel(
+      # subsetting data to only show declining country labels
+      data = subset(data_EUmapBinned, pop_change_perc < 0), 
+      # "sf_coordinates" so ggrepel can use "geometry"
+      stat = "sf_coordinates",
+      aes(
+        geometry = geometry,
+        label = name)) +
+    theme_ggplot2_map() +
+    # labeling
+    labs(
+      title = "Asian countries with declining resident population ",
+      subtitle = "2015 - 2020, labels only shown for countries with change < 0%",
+      caption = "",
+      tag = "",
+      fill = "change in %") +
+    xlab("") +
+    ylab("")  +
+  theme(legend.position = "top")
+  
+
+```
+
+```{r echo = FALSE, warning = FALSE, message= FALSE}
+mapPlotScaleCont
+```
+
+
+```{r echo = FALSE, warning = FALSE, message= FALSE}
+mapPlotScaleBinned
+```
+
+## Miscellaneous
+
+### overlapping bar charts
+
+- overlapping bar charts
+- legends from two seperate layers
+- alternative to population pyramid
+
+```{r echo = FALSE, warning = FALSE, message= FALSE}
+countryList <- c("Germany","Romania","Bulgaria","Syrian Arab Republic")
+
+BarData <- data_popFM_long %>% 
+  filter(year == "2020") %>% 
+  filter(name %in% countryList) %>% 
+  dplyr::group_by(
+    year,
+    name,
+    gender) %>% 
+  dplyr::mutate(
+    percPop_country_gender = round(population/sum(population)*100,1)) 
+
+plotBarFill <- BarData %>% 
+    ggplot() +
+    geom_bar(
+      # filter within data
+      # Alternative: BarData[BarData$gender=="F",]
+      data = subset(BarData, gender == "F"), 
+      aes(
+        x=age, 
+        y=percPop_country_gender),
+      # no fill colour / black border
+      fill = NA,
+      color = "Black",
+      stat="identity") +
+    geom_bar(
+      data = subset(BarData, gender == "M"), 
+      aes(
+        x=age, 
+        y=percPop_country_gender),
+      alpha = 0.3,
+      # position = "identity",
+      stat="identity") +
+    scale_x_discrete(guide = guide_axis(angle = 90)) +
+    scale_colour_manual(labels = c("male", "female"), values=c("lightblue4", "red")) +
+    labs(
+      title = "Percentage share of age groups in resident population in 2020",
+      subtitle = "in Germany and main immigration countries by gender",
+      caption = "Dataset wpp2019, Age- and sex-specific populationestimates and projections ",
+      tag = "",
+      fill = "Gender") +
+    xlab("Age groups") +
+    ylab("Percentage share of total resident population") +
+  facet_wrap(~ name, nrow = 2, ncol = 2) +
+  theme_minimal()
+```
+
+```{r echo = FALSE}
+plotBarFill
+```
+
+
+
+
