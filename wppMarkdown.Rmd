@@ -18,6 +18,7 @@ library(tidyverse)
 library(patchwork) 
 library(rnaturalearth)
 library(sf)
+library(tmap)
 ```
 
 ```{r echo = FALSE, warning = FALSE, message = FALSE}
@@ -628,8 +629,6 @@ popLineGraph
 ###
 
 
-
-
 # calculation perc growth 2020 - 2015 and grouping countries
 popMapData <- data_popFM_long %>%
   filter(area_name == "Asia") %>% 
@@ -655,9 +654,9 @@ filterCountrylist <- popMapData %>%
   distinct() %>% 
   pull()
 
-data_EUmap <- data_Worldmap %>%  
+data_EUmap <- sf::st_as_sf(data_Worldmap %>%  
   filter(country_code %in% filterCountrylist) %>% 
-  left_join(popMapData)
+  left_join(popMapData))
 
 
 mapPlotScaleCont <- ggplot() +
@@ -756,7 +755,8 @@ mapPlotScaleBinned <- data_EUmapBinned %>%
       fill = "change in %") +
     xlab("") +
     ylab("")  +
-  theme(legend.position = "top")
+  theme(legend.position = "top") +
+  scale_fill_grey()
   
 
 ```
@@ -769,6 +769,7 @@ mapPlotScaleCont
 ```{r echo = FALSE, warning = FALSE, message= FALSE}
 mapPlotScaleBinned
 ```
+
 
 ## Miscellaneous
 
@@ -832,4 +833,21 @@ plotBarFill
 
 
 
+
+# Interactive Plots
+
+## Maps
+
+### TMAP
+
+```{r echo = FALSE, message= FALSE, warning=FALSE}
+tmap_mode("view")
+
+
+  tm_shape(data_EUmap) +
+  tm_polygons(
+    "pop_change_perc",
+    popup.vars = c("name","pop_change_perc"),
+    alpha = 0.5)
+```
 
