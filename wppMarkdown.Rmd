@@ -18,7 +18,7 @@ library(tidyverse)
 library(patchwork) 
 library(rnaturalearth)
 library(sf)
-library(tmap)
+
 ```
 
 ```{r echo = FALSE, warning = FALSE, message = FALSE}
@@ -833,21 +833,35 @@ plotBarFill
 
 
 
+```{r}
+popBarVertical <- data_popFM_long %>% 
+  filter(
+    name == "Germany",
+    year == 2020
+  ) %>% 
+  select(
+    age,
+    population,
+    gender
+  ) %>% 
+  mutate(group = case_when(
+    age == "100+" |  age == "50-54" | age == "45-49" ~ "AR",
+    TRUE ~ as.character("SR")
+    )
+  )
 
-# Interactive Plots
-
-## Maps
-
-### TMAP
-
-```{r echo = FALSE, message= FALSE, warning=FALSE}
-tmap_mode("view")
 
 
-  tm_shape(data_EUmap) +
-  tm_polygons(
-    "pop_change_perc",
-    popup.vars = c("name","pop_change_perc"),
-    alpha = 0.5)
+popBarVertical %>% 
+  ggplot() +
+  geom_bar(
+    aes(
+      x = population,
+      y = age,
+      fill = gender),
+    stat="identity",
+    position="stack"
+  )
+  
 ```
 
